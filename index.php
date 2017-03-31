@@ -116,7 +116,7 @@ $app->post('/', function (Request $request, Response $response){
         }elseif($event['type'] == 'message'){
             $text = $event['message']['text'];
             $user = User::findOne(['user_id' => $user_id]);
-            if($text == "start"){
+            if(strtolower($text) == "start"){
                 if($user->status == User::STATUS_LOOKING){
                     $bot->pushMessage($user_id, new TextMessageBuilder("Bot: We still looking for a person to talk to you :)"));
                 }elseif ($user->status == User::STATUS_IN_CHAT){
@@ -133,7 +133,7 @@ $app->post('/', function (Request $request, Response $response){
                         $bot->pushMessage($user_id, new TextMessageBuilder("Please help share this bot. We need a lot of people for this to be fun :)"));
                     }
                 }
-            }elseif ($text == "end_talk"){
+            }elseif (strtolower($text) == "end_talk"){
                 BotHelper::notifyEndMate($bot, $user->current_friend_id, true);
                 $user->current_friend_id = '';
                 $user->status = User::STATUS_IDLE;
@@ -141,8 +141,10 @@ $app->post('/', function (Request $request, Response $response){
                 $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
                 $bot->pushMessage($user_id, new TextMessageBuilder("How was the talk? Is it nice?"));
                 $bot->pushMessage($user_id, BotHelper::getMenu());
-            }elseif ($text == "chat_quota"){
+            }elseif (strtolower($text) == "chat_quota"){
                 $bot->pushMessage($user_id, new TextMessageBuilder("Bot: You have {$user->chat_quota} left."));
+            }elseif (strtolower($text) == 'menu'){
+                $bot->pushMessage($user_id, BotHelper::getMenu());
             }else{
                 if($user->chat_quota > 0 ){
                     if($event['message']['type'] == 'sticker'){
