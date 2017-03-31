@@ -102,6 +102,8 @@ $app->post('/', function (Request $request, Response $response){
                     $bot->pushMessage($user_id, new StickerMessageBuilder(1, 13));
                     $bot->pushMessage($user_id, new TextMessageBuilder('Here, you can talk to stranger around the world anonymously'));
                     $bot->pushMessage($user_id, new TextMessageBuilder('Each session of the talk will only let you send 30 messages, so make sure you only say something nice to the person on the other end :)'));
+                    $bot->pushMessage($user_id, new TextMessageBuilder('The talk session will end automatically when one of you reach your 30 message quota.'));
+                    $bot->pushMessage($user_id, new TextMessageBuilder('If you want to end the session manually, you can type "menu", and select "End talk".'));
                     $bot->pushMessage($user_id, BotHelper::getMenu());
 
 //                    return $result->getHTTPStatus()." ".$result->getRawBody();
@@ -131,17 +133,37 @@ $app->post('/', function (Request $request, Response $response){
                         $bot->pushMessage($user_id, new TextMessageBuilder("Please help share this bot. We need a lot of people for this to be fun :)"));
                     }
                 }
+            }elseif ($text == "end_talk"){
+                BotHelper::notifyEndMate($bot, $user->current_friend_id, true);
+                $user->current_friend_id = '';
+                $user->status = User::STATUS_IDLE;
+                $user->save();
+                $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
+                $bot->pushMessage($user_id, new TextMessageBuilder("How was the talk? Is it nice?"));
+                $bot->pushMessage($user_id, BotHelper::getMenu());
+            }elseif ($text == "chat_quota"){
+                $bot->pushMessage($user_id, new TextMessageBuilder("Bot: You have {$user->chat_quota} left."));
             }else{
-                $bot->pushMessage($user->current_friend_id, new TextMessageBuilder($text));
-                $user->chat_quota = $user->chat_quota - 1;
-                if($user->chat_quota < 1){
-                    $user->current_friend_id = '';
-                    $user->status = User::STATUS_IDLE;
-                    $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
-                    $bot->pushMessage($user_id, new TextMessageBuilder("How was the talk? Is it nice?"));
+                if($user->chat_quota > 0 ){
+                    if($event['message']['type'] == 'sticker'){
+                        $bot->pushMessage($user_id, new StickerMessageBuilder($event['message']['packageId'], $event['stickerId']));
+                    }else{
+                        $bot->pushMessage($user->current_friend_id, new TextMessageBuilder($text));
+                    }
+                    $user->chat_quota = $user->chat_quota - 1;
+                    if($user->chat_quota < 1){
+                        BotHelper::notifyEndMate($bot, $user->current_friend_id, false);
+                        $user->current_friend_id = '';
+                        $user->status = User::STATUS_IDLE;
+                        $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
+                        $bot->pushMessage($user_id, new TextMessageBuilder("How was the talk? Is it nice?"));
+                        $bot->pushMessage($user_id, BotHelper::getMenu());
+                    }
+                    $user->save();
+                }else{
+                    $bot->pushMessage($user_id, new TextMessageBuilder("Sorry, we dont't understand what are you saying :("));
                     $bot->pushMessage($user_id, BotHelper::getMenu());
                 }
-                $user->save();
             }
         }else{
             $result = $bot->replyText($event['replyToken'], print_r($event, 1));
