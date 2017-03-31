@@ -37,9 +37,6 @@ $app = new Slim\App(['settings' => $config]);
 $container = $app->getContainer();
 
 $app->get('/', function (Request $request, Response $response){
-    ini_set('display_errors', 1);
-    $user = User::findOne(['user_id' => 'Ue84692bbf94c980be363679272ec7eb2']);
-    die(print_r(User::getTopTen(),1 ));
 
 });
 
@@ -89,10 +86,9 @@ $app->post('/', function (Request $request, Response $response){
         if($event['type'] == 'follow'){
             if(User::exist($user_id)){
                 $user = User::findOne(['user_id' => $user_id]);
-                $bot->pushMessage($user_id, new TextMessageBuilder("Selamat datang kembali {$user->display_name} :)"));
+                $bot->pushMessage($user_id, new TextMessageBuilder("Welcome back,{$user->display_name} :)"));
                 $bot->pushMessage($user_id, new StickerMessageBuilder(1, 4));
-                $bot->pushMessage($user_id, Question::getMenu());
-//                return $result->getHTTPStatus()." ".$result->getRawBody();
+                $bot->pushMessage($user_id, BotHelper::getMenu());
 
             }else{
                 $profile = $bot->getProfile($user_id)->getJSONDecodedBody();
@@ -101,12 +97,12 @@ $app->post('/', function (Request $request, Response $response){
                     $user = new User();
                     $user->user_id = $user_id;
                     $user->display_name = $profile['displayName'];
-                    $user->line_id = 'asdas';
                     $user->insert();
-                    $bot->pushMessage($user_id, new LINEBot\MessageBuilder\TextMessageBuilder("Halo Kak {$user->display_name}, selamat datang di Flag Quiz!"));
+                    $bot->pushMessage($user_id, new LINEBot\MessageBuilder\TextMessageBuilder("Hi {$user->display_name}, welcome to Talk To Stranger Bot!"));
                     $bot->pushMessage($user_id, new StickerMessageBuilder(1, 13));
-                    $bot->pushMessage($user_id, new TextMessageBuilder('Dalam kuis ini Kakak akan diberikan pertanyaan-pertanyaan mudah terkait bendera yang ditampilkan'));
-                    $bot->pushMessage($user_id, Question::getMenu());
+                    $bot->pushMessage($user_id, new TextMessageBuilder('Here, you can talk to stranger around the world anonymously'));
+                    $bot->pushMessage($user_id, new TextMessageBuilder('Each session of the talk will only let you send 30 messages, so make sure you only say something nice to the person on the other end :)'));
+                    $bot->pushMessage($user_id, BotHelper::getMenu());
 
 //                    return $result->getHTTPStatus()." ".$result->getRawBody();
                 }catch (Exception $e){
@@ -116,82 +112,36 @@ $app->post('/', function (Request $request, Response $response){
                 }
             }
         }elseif($event['type'] == 'message'){
-            $text = strtolower($event['message']['text']);
+            $text = $event['message']['text'];
             $user = User::findOne(['user_id' => $user_id]);
-            if($text == "mulai"){
-                if($user->current_score > 0){
-                    $bot->pushMessage($user_id, new TextMessageBuilder("Kakak kan sudah mulai, gimana sih..."));
-                    $bot->pushMessage($user_id, new StickerMessageBuilder(1, 405));
+            if($text == "start"){
+                if($user->status == User::STATUS_LOOKING){
+                    $bot->pushMessage($user_id, new TextMessageBuilder("Bot: We still looking for a person to talk to you :)"));
+                }elseif ($user->status == User::STATUS_IN_CHAT){
+                    $bot->pushMessage($user_id, new TextMessageBuilder("Bot: You are already in a talking session with other person :)"));
                 }else{
-                    $question = new Question($user);
-
-                    $bot->pushMessage($user_id, $question->generate());
+                    $user->status = User::STATUS_LOOKING;
+                    if($user->getChatMate()){
+                        $user->save();
+                        BotHelper::greetMate($user_id);
+                    }else{
+                        $user->save();
+                        $bot->pushMessage($user_id, new TextMessageBuilder("Sorry, we couldn't find any person who are free to talk right now."));
+                        $bot->pushMessage($user_id, new TextMessageBuilder("We will notify you when there is a persone that are ready to talk"));
+                        $bot->pushMessage($user_id, new TextMessageBuilder("Please help share this bot. We need a lot of people for this to be fun :)"));
+                    }
                 }
             }else{
-                if($text == "menu"){
-                    $bot->pushMessage($user_id, Question::getMenu());
-                }elseif ($text == "hi_score"){
-                    $bot->pushMessage($user_id, new TextMessageBuilder("Skor tertinggi Kakak adalah {$user->high_score}"));
-                    $bot->pushMessage($user_id, Question::getMenu());
-                }elseif ($text == "global_rank"){
-                    $bot->pushMessage($user_id, User::getTopTen());
-                    $bot->pushMessage($user_id, Question::getMenu());
-                }elseif($text == $user->answer_needed){
-                    $user->current_score = $user->current_score + 1;
-                    $user->save();
-                    $bot->pushMessage($user_id, new TextMessageBuilder("Jawaban Kakak benar!"));
-                    $bot->pushMessage($user_id, new StickerMessageBuilder(2, 144));
-                    $bot->pushMessage($user_id, new TextMessageBuilder("Lanjut ke pertanyaan berikutnya ya Kak"));
-                    $question = new Question($user);
-                    $bot->pushMessage($user_id, $question->generate());
-                }else{
-                    switch ($user->life){
-                        case 5:
-                            $text = "Wah, salah Kak jawabannya :(";
-                            $sticker = new StickerMessageBuilder(1, 403);
-                            break;
-                        case 4:
-                            $text = "Kok salah lagi sih? Ini gampang loh";
-                            $sticker = new StickerMessageBuilder(1, 117);
-                            break;
-                        case 3:
-                            $text = "Dulu sekolah dimana sih? Ginian aja kok gak bisa";
-                            $sticker = new StickerMessageBuilder(1, 104);
-                            break;
-                        case 2:
-                            $text = "Ya ampun salah lagi. Tapi beneran pernah sekolah kan?";
-                            $sticker = new StickerMessageBuilder(1, 101);
-                            break;
-                        default:
-                            $text = "Ah, sudahlah...";
-                            $sticker = new StickerMessageBuilder(2, 18);
-                    }
-                    $user->life = $user->life - 1;
-                    $text2 = "Kakak hanya boleh salah menjawab {$user->life} kali lagi";
-                    if($user->life < 1){
-                        $text2 = "Game over. Skor Kakak adalah {$user->current_score}.";
-                        $bot->pushMessage($user_id, new TextMessageBuilder($text));
-                        $bot->pushMessage($user_id, $sticker);
-                        $bot->pushMessage($user_id, new TextMessageBuilder($text2));
-
-                        if($user->current_score > $user->high_score){
-                            $bot->pushMessage($user_id, new TextMessageBuilder("Ini skor tertinggi Kakak! Mengalahkan skor sebelumnya yaitu {$user->high_score}"));
-                            $user->high_score = $user->current_score;
-                        }
-                        $user->current_score = 0;
-                        $user->life = 5;
-                        $user->answered = '';
-                        $user->answer_needed = '';
-
-                        $bot->pushMessage($user_id, Question::getMenu());
-                    }else{
-                        $bot->pushMessage($user_id, new TextMessageBuilder($text));
-                        $bot->pushMessage($user_id, $sticker);
-                        $bot->pushMessage($user_id, new TextMessageBuilder($text2));
-                        $bot->pushMessage($user_id, Question::deserializeQuestion($user->last_question));
-                    }
-                    $user->save();
+                $bot->pushMessage($user->current_friend_id, new TextMessageBuilder($text));
+                $user->chat_quota = $user->chat_quota - 1;
+                if($user->chat_quota < 1){
+                    $user->current_friend_id = '';
+                    $user->status = User::STATUS_IDLE;
+                    $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
+                    $bot->pushMessage($user_id, new TextMessageBuilder("How was the talk? Is it nice?"));
+                    $bot->pushMessage($user_id, BotHelper::getMenu());
                 }
+                $user->save();
             }
         }else{
             $result = $bot->replyText($event['replyToken'], print_r($event, 1));
