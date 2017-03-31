@@ -18,7 +18,7 @@ class BotHelper
     public static function getMenu(){
         $options[] = new MessageTemplateActionBuilder('Start talking', 'start');
         $options[] = new MessageTemplateActionBuilder('Chat quota', 'chat_quota');
-        $options[] = new MessageTemplateActionBuilder('View statistics', 'stats');
+        $options[] = new MessageTemplateActionBuilder('End talk', 'end_talk');
 
         $button_template = new ButtonTemplateBuilder('Menu', 'What do you want to do?', null, $options);
 
@@ -38,5 +38,19 @@ class BotHelper
         $bot->pushMessage($user_id, new TextMessageBuilder("Please only say something nice :)"));
         $bot->pushMessage($user_id, new TextMessageBuilder("End of Bot Response\n==========================="));
 
+    }
+
+    public static function notifyEndMate($bot, $user_id, $intentional = false){
+        $mate = User::findOne(['user_id' => $user_id]);
+        $mate->current_friend_id = '';
+        $mate->status = User::STATUS_IDLE;
+        $mate->save();
+        if(! $intentional){
+            $bot->pushMessage($user_id, new TextMessageBuilder("Bot: The person on the other end have run out of chat quota"));
+        }else{
+            $bot->pushMessage($user_id, new TextMessageBuilder("Bot: Ouch, the person on the other end stopped the session :("));
+        }
+        $bot->pushMessage($user_id, new TextMessageBuilder("===========================\nThis talking session is ended."));
+        $bot->pushMessage($user_id, BotHelper::getMenu());
     }
 }
