@@ -148,7 +148,7 @@ $app->post('/', function (Request $request, Response $response){
             }else{
                 if($user->chat_quota > 0 ){
                     if($event['message']['type'] == 'sticker'){
-                        $bot->pushMessage($user_id, new StickerMessageBuilder($event['message']['packageId'], $event['stickerId']));
+                        $bot->pushMessage($user_id, new StickerMessageBuilder($event['message']['packageId'], $event['message']['stickerId']));
                     }else{
                         $bot->pushMessage($user->current_friend_id, new TextMessageBuilder($text));
                     }
